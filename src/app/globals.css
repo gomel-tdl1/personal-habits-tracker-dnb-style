@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@theme {
+  --color-stage: #07081a;
+  --color-panel: #10122a;
+  --color-panel-2: #171a38;
+  --color-rig: #23264a;
+  --color-ink: #eef0ff;
+  --color-dim: #8a8fb8;
+  --color-faint: #565b85;
+
+  --color-cyan: #27e8f5;
+  --color-magenta: #ff2e88;
+  --color-uv: #8b5cff;
+  --color-amber: #ffb020;
+  --color-red: #ff3b3b;
+  --color-lime: #b6ff3b;
+  --color-ice: #5aa9ff;
+  --color-white: #f2f4ff;
+
+  --font-sans: var(--font-onest), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-tektur), var(--font-onest), ui-sans-serif, sans-serif;
+
+  --radius-card: 1.25rem;
+  --ease-drop: cubic-bezier(0.2, 0.9, 0.1, 1);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+
+  html,
+  body {
+    background: var(--color-stage);
+    color: var(--color-ink);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  /* LED wall: a faint dot matrix behind everything, brightest near the top like stage wash. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgb(139 92 255 / 0.16), transparent 60%),
+      radial-gradient(circle at center, rgb(238 240 255 / 0.07) 1px, transparent 1.2px) 0 0 / 14px 14px;
+    mask-image: linear-gradient(to bottom, black 0%, rgb(0 0 0 / 0.35) 55%, transparent 100%);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-cyan);
+    outline-offset: 2px;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.6;
+  }
+
+  /* Big time value on tracker cards: the field itself is the display. */
+  .time-field {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .time-field::-webkit-calendar-picker-indicator {
+    display: none;
+  }
+  .time-field::-webkit-datetime-edit {
+    padding: 0;
+  }
+  .time-field::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+  .time-field:not(:focus):invalid::-webkit-datetime-edit,
+  .time-field[value=""]:not(:focus)::-webkit-datetime-edit {
+    color: transparent;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility display-tight {
+  font-family: var(--font-display);
+  font-stretch: 75%;
+  font-variation-settings: "wdth" 75;
+  letter-spacing: -0.01em;
+  line-height: 0.95;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
