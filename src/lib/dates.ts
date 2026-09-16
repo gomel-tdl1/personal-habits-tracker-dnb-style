@@ -12,8 +12,18 @@ export function fromKey(key: string): Date {
   return new Date(y, m - 1, d, 12);
 }
 
+/** A day runs from 04:00 to 04:00, so a late night still belongs to the evening before. */
+export const DAY_START_HOUR = 4;
+
+/** The habit day a moment belongs to. */
+export function dayKeyOf(moment: Date): string {
+  const d = new Date(moment);
+  d.setHours(d.getHours() - DAY_START_HOUR);
+  return toKey(d);
+}
+
 export function todayKey(): string {
-  return toKey(new Date());
+  return dayKeyOf(new Date());
 }
 
 export function addDays(key: string, n: number): string {
@@ -37,8 +47,9 @@ export function rangeKeys(from: string, to: string): string[] {
   return out;
 }
 
+/** HH:MM for minutes after midnight; values past midnight (or before it) wrap around. */
 export function formatMinutes(total: number): string {
-  const m = Math.max(0, Math.min(1439, Math.round(total)));
+  const m = ((Math.round(total) % 1440) + 1440) % 1440;
   return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 }
 

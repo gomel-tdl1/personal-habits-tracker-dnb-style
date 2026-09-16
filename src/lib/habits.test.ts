@@ -34,6 +34,11 @@ describe("isScheduled", () => {
   it("is false before the tracker was created", () => {
     expect(isScheduled(base, "2026-08-31")).toBe(false);
   });
+  it("counts a tracker created in the small hours as created the previous day", () => {
+    // 01:30 in Berlin on 2026-09-10.
+    const t = tracker({ created_at: "2026-09-09T23:30:00.000Z" });
+    expect(isScheduled(t, "2026-09-09")).toBe(true);
+  });
 });
 
 describe("isDone / progress", () => {
@@ -60,6 +65,24 @@ describe("isDone / progress", () => {
     expect(isDone(t, 415)).toBe(true);
     expect(isDone(t, 421)).toBe(false);
     expect(progress(t, 421)).toBe(0);
+  });
+  it("time: after midnight is later than a late-evening goal", () => {
+    const bedtime = tracker({ type: "time", goal: 23 * 60, goal_op: "lte" });
+    expect(isDone(bedtime, 22 * 60 + 50)).toBe(true);
+    expect(isDone(bedtime, 23 * 60 + 30)).toBe(false);
+    expect(isDone(bedtime, 0)).toBe(false); // 00:00
+    expect(isDone(bedtime, 60)).toBe(false); // 01:00
+  });
+  it("time: morning goals are unaffected", () => {
+    const wake = tracker({ type: "time", goal: 7 * 60, goal_op: "lte" });
+    expect(isDone(wake, 6 * 60 + 30)).toBe(true);
+    expect(isDone(wake, 7 * 60 + 30)).toBe(false);
+    expect(isDone(wake, 12 * 60)).toBe(false);
+  });
+  it("time: not-earlier-than goals treat the small hours as late", () => {
+    const lateWorkout = tracker({ type: "time", goal: 22 * 60, goal_op: "gte" });
+    expect(isDone(lateWorkout, 60)).toBe(true); // 01:00 is after 22:00
+    expect(isDone(lateWorkout, 21 * 60)).toBe(false);
   });
   it("number without goal is done when logged", () => {
     const t = tracker({ type: "number" });
@@ -97,7 +120,7 @@ describe("streaks", () => {
 
 describe("completion", () => {
   it("ignores unfinished today and unscheduled days", () => {
-    const t = tracker({ created_at: "2026-09-10T00:00:00.000Z" });
+    const t = tracker({ created_at: "2026-09-10T08:00:00.000Z" });
     const map = entries("t1", { "2026-09-10": 1, "2026-09-12": 1 });
     // period 2026-09-09..15: scheduled from 10th, today (15) excluded → 10..14 = 5 days, 2 done
     const r = completion([t], map, "2026-09-09", "2026-09-15", "2026-09-15");

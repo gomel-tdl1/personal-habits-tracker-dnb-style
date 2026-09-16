@@ -1,8 +1,17 @@
-import { addDays, isoWeekday, toKey } from "./dates";
+import { addDays, dayKeyOf, isoWeekday } from "./dates";
 import { entryKey, type EntryMap, type Tracker } from "./types";
 
 export function createdKey(t: Tracker): string {
-  return toKey(new Date(t.created_at));
+  return dayKeyOf(new Date(t.created_at));
+}
+
+/**
+ * A clock time (minutes after midnight) read on the goal's side of midnight:
+ * the nearest equivalent within 12 hours of the goal. For a 23:00 bedtime,
+ * 01:00 becomes 25:00 (late); for a 07:00 wake-up, 06:30 stays 06:30.
+ */
+export function aroundGoal(minutes: number, goal: number): number {
+  return minutes + Math.round((goal - minutes) / 1440) * 1440;
 }
 
 export function isScheduled(t: Tracker, date: string): boolean {
@@ -14,7 +23,8 @@ export function isDone(t: Tracker, value: number | undefined): boolean {
   if (value === undefined || value === null) return false;
   if (t.type === "check") return value >= 1;
   if (t.goal === null) return t.type === "counter" ? value > 0 : true;
-  return t.goal_op === "gte" ? value >= t.goal : value <= t.goal;
+  const v = t.type === "time" ? aroundGoal(value, t.goal) : value;
+  return t.goal_op === "gte" ? v >= t.goal : v <= t.goal;
 }
 
 export function progress(t: Tracker, value: number | undefined): number {

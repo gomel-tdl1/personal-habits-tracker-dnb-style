@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, diffDays, fromKey, isoWeekday, rangeKeys, toKey, formatMinutes, parseTime } from "./dates";
+import { addDays, dayKeyOf, diffDays, fromKey, isoWeekday, rangeKeys, toKey, formatMinutes, parseTime } from "./dates";
 
 describe("dates", () => {
   it("formats local dates as YYYY-MM-DD", () => {
@@ -32,6 +32,18 @@ describe("dates", () => {
 
   it("counts days between keys", () => {
     expect(diffDays("2026-09-01", "2026-09-15")).toBe(14);
+  });
+
+  it("counts the small hours as the previous day", () => {
+    expect(dayKeyOf(new Date(2026, 8, 16, 1, 0))).toBe("2026-09-15");
+    expect(dayKeyOf(new Date(2026, 8, 16, 3, 59))).toBe("2026-09-15");
+    expect(dayKeyOf(new Date(2026, 8, 16, 4, 0))).toBe("2026-09-16");
+    expect(dayKeyOf(new Date(2026, 8, 15, 23, 30))).toBe("2026-09-15");
+  });
+
+  it("wraps clock minutes past midnight", () => {
+    expect(formatMinutes(1500)).toBe("01:00");
+    expect(formatMinutes(-30)).toBe("23:30");
   });
 
   it("formats and parses clock minutes", () => {

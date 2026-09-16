@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { addDays, fromKey, rangeKeys } from "@/lib/dates";
 import { formatValue, localeTag } from "@/lib/format";
-import { isDone, isScheduled, valueOf } from "@/lib/habits";
+import { aroundGoal, isDone, isScheduled, valueOf } from "@/lib/habits";
 import { useWidth } from "@/lib/hooks/useWidth";
 import { useI18n } from "@/lib/i18n/provider";
 import { PIGMENTS, type EntryMap, type Tracker } from "@/lib/types";
@@ -27,7 +27,14 @@ export function DailyChart({ tracker, map, today, period }: Props) {
   const color = PIGMENTS[tracker.color];
 
   const days = rangeKeys(addDays(today, -(period - 1)), today);
-  const points = days.map((date) => ({ date, value: valueOf(map, tracker, date), scheduled: isScheduled(tracker, date) }));
+  const raw = days.map((date) => valueOf(map, tracker, date));
+  // Clock times are plotted on the goal's side of midnight, so 01:00 sits above 23:00.
+  const anchor = tracker.goal ?? raw.find((v) => v !== undefined) ?? 0;
+  const points = days.map((date, i) => ({
+    date,
+    value: tracker.type === "time" && raw[i] !== undefined ? aroundGoal(raw[i], anchor) : raw[i],
+    scheduled: isScheduled(tracker, date),
+  }));
   const values = points.flatMap((p) => (p.value === undefined ? [] : [p.value]));
 
   if (tracker.type === "check") return <p className="text-sm text-dim">{t.dashboard.noNumeric}</p>;
