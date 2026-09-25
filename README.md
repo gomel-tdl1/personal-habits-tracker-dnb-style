@@ -1,6 +1,14 @@
 # Drop
 
-Личный трекер привычек в стиле drum & bass: конструктор трекеров, конструктор дашборда и звук на каждое действие. Next.js 16 + Supabase, деплой на Vercel.
+Личный трекер привычек в стиле drum & bass: конструктор трекеров, конструктор дашборда и звук на каждое действие. Next.js 16 + Supabase, деплой на Vercel и приложение для iOS на Capacitor.
+
+Монорепо на pnpm:
+
+| Папка | Что там |
+| --- | --- |
+| `apps/web` | Next.js-приложение: сайт и содержимое iOS-приложения |
+| `apps/mobile` | iOS-приложение: оболочка Capacitor и Xcode-проект в `ios/` |
+| `packages/core` | общая логика: типы, даты, серии, дропы, форматирование, словари |
 
 ## Локально за минуту
 
@@ -19,7 +27,7 @@ pnpm dev
 4. **Authentication → Users → Add user → Create new user**: email и пароль, отметь **Auto Confirm User**.
 5. **Project Settings → API Keys**: скопируй Project URL и publishable key (`sb_publishable_…`; старый `anon` ключ тоже подойдёт).
 
-Создай `.env.local` по образцу [.env.example](.env.example):
+Создай `apps/web/.env.local` по образцу [apps/web/.env.example](apps/web/.env.example):
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
@@ -50,20 +58,34 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 ## Vercel
 
-1. Залей репозиторий на GitHub и импортируй его в Vercel (фреймворк определится сам).
-2. В **Settings → Environment Variables** добавь те же две переменные.
-3. Deploy.
+1. Залей репозиторий на GitHub и импортируй его в Vercel.
+2. **Settings → Build and Deployment → Root Directory**: `apps/web`. Vercel сам увидит pnpm-воркспейс и соберёт `packages/core`.
+3. В **Settings → Environment Variables** добавь те же две переменные.
+4. Deploy.
 
-На телефоне открой сайт и выбери «На экран „Домой“»: приложение запустится без адресной строки.
+На телефоне можно открыть сайт и выбрать «На экран „Домой“», но удобнее приложение, см. ниже.
+
+## iOS-приложение
+
+Внутри то же веб-приложение, собранное в статические файлы: открывается сразу, без загрузки страниц по сети. Данные по-прежнему в Supabase. Вибрация идёт через Taptic Engine, сессия хранится в нативном хранилище.
+
+Нужны Xcode из App Store и Apple ID. С бесплатным Apple ID приложение работает 7 дней, потом его нужно снова запустить из Xcode; с Apple Developer ($99 в год) — год и TestFlight.
+
+1. Проверь, что есть `apps/web/.env.local` с ключами Supabase: они вшиваются в сборку.
+2. `pnpm ios` — соберёт веб-часть, скопирует её в Xcode-проект и откроет Xcode.
+3. В Xcode: **App → Signing & Capabilities → Team** — выбери свой Apple ID. Если Xcode ругается на Bundle Identifier, поменяй `com.gomeltdl1.drop` на свой (и в `apps/mobile/capacitor.config.ts`).
+4. Подключи iPhone кабелем, выбери его сверху и нажми ▶︎. При первом запуске на телефоне: **Настройки → Основные → VPN и управление устройством** → доверять разработчику; для iOS 16+ ещё **Конфиденциальность → Режим разработчика**.
+
+После изменений в коде: `pnpm ios:sync`, затем ▶︎ в Xcode.
 
 ## Как устроено
 
-- `src/proxy.ts` обновляет сессию Supabase и отправляет на `/login` без входа. Это вся серверная часть.
-- `src/lib/habits.ts` — логика «день засчитан», серии, процент выполнения (тесты рядом).
-- `src/lib/repo/` — доступ к данным: Supabase или демо-режим.
-- `src/lib/sound/synth.ts` и `drops.ts` — синтез на Web Audio: фа минор, 174 BPM, четыре стиля дропа.
-- `src/lib/sound/tracks.ts` и `beats.ts` — загрузка треков из Storage и поиск сетки кика и снейра.
-- `src/components/today/useCommit.ts` — какой звук и эффект играет на каждое действие.
+- Сервера нет: вход проверяется в браузере (`apps/web/src/lib/supabase/useSignedIn.ts`), данные защищает RLS. Поэтому то же приложение собирается статикой для iOS.
+- `packages/core/src/habits.ts` — логика «день засчитан», серии, дропы, процент выполнения (тесты рядом).
+- `apps/web/src/lib/repo/` — доступ к данным: Supabase или демо-режим.
+- `apps/web/src/lib/sound/synth.ts` и `drops.ts` — синтез на Web Audio: фа минор, 174 BPM, четыре стиля дропа.
+- `apps/web/src/lib/sound/tracks.ts` и `beats.ts` — загрузка треков из Storage и поиск сетки кика и снейра.
+- `apps/web/src/components/today/useCommit.ts` — какой звук и эффект играет на каждое действие.
 
 | Действие | Звук | Визуал |
 | --- | --- | --- |
@@ -79,7 +101,11 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ## Команды
 
 ```bash
-pnpm test    # unit-тесты логики
+pnpm dev        # сайт локально
+pnpm test       # unit-тесты во всех пакетах
+pnpm typecheck
 pnpm lint
-pnpm build
+pnpm build      # сборка сайта
+pnpm ios        # собрать и открыть iOS-проект в Xcode
+pnpm ios:sync   # обновить iOS-проект после изменений
 ```
