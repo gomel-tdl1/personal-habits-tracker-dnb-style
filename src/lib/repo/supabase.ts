@@ -48,18 +48,21 @@ export const supabaseRepo: Repo = {
       const rows = check(
         await db
           .from("entries")
-          .select("tracker_id, date, value")
+          // "*" keeps working on a database without the `sets` column (before 004).
+          .select("*")
           .gte("date", from)
           .order("date")
           .order("tracker_id")
           .range(offset, offset + PAGE - 1),
       ) as Entry[];
-      all.push(...rows.map((r) => ({ ...r, value: Number(r.value) })));
+      all.push(
+        ...rows.map(({ tracker_id, date, value, sets }) => ({ tracker_id, date, value: Number(value), sets: sets ? sets.map(Number) : null })),
+      );
       if (rows.length < PAGE) return all;
     }
   },
 
-  async setEntry(trackerId, date, value) {
+  async setEntry(trackerId, date, value, sets) {
     const db = getSupabase();
     if (value === null) {
       check(await db.from("entries").delete().eq("tracker_id", trackerId).eq("date", date));
@@ -68,7 +71,10 @@ export const supabaseRepo: Repo = {
     check(
       await db
         .from("entries")
-        .upsert({ tracker_id: trackerId, date, value, updated_at: new Date().toISOString() }, { onConflict: "tracker_id,date" }),
+        .upsert(
+          { tracker_id: trackerId, date, value, ...(sets ? { sets } : {}), updated_at: new Date().toISOString() },
+          { onConflict: "tracker_id,date" },
+        ),
     );
   },
 

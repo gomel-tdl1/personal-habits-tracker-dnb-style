@@ -1,4 +1,4 @@
-export type TrackerType = "check" | "counter" | "number" | "time";
+export type TrackerType = "check" | "counter" | "sets" | "number" | "time";
 export type GoalOp = "gte" | "lte";
 
 export const PIGMENTS = {
@@ -40,10 +40,13 @@ export interface Entry {
   tracker_id: string;
   /** Local calendar date, YYYY-MM-DD. */
   date: string;
+  /** For a sets tracker, the sum of `sets`. */
   value: number;
+  /** Sets tracker only: each set in the order it was logged. */
+  sets?: number[] | null;
 }
 
-export type WidgetKind = "heatmap" | "daily_chart" | "streak" | "completion";
+export type WidgetKind = "heatmap" | "daily_chart" | "streak" | "completion" | "drops" | "sets";
 export type WidgetSize = "S" | "M" | "L";
 
 export interface Widget {
@@ -64,5 +67,8 @@ export type WidgetDraft = Omit<Widget, "id" | "created_at" | "position"> & {
 
 /** Entry values keyed by `${trackerId}:${date}`. */
 export type EntryMap = Map<string, number>;
+
+/** Sets keyed like EntryMap; only days logged on a sets tracker. */
+export type SetsMap = Map<string, number[]>;
 
 export const entryKey = (trackerId: string, date: string) => `${trackerId}:${date}`;

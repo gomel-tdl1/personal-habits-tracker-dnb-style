@@ -1,22 +1,38 @@
 "use client";
 
-import { AudioWaveform, Check, Flame, Grid3x3, Percent } from "lucide-react";
+import { AudioWaveform, Check, Dumbbell, Flame, Grid3x3, Percent, Zap } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n/provider";
 import { useSaveWidget } from "@/lib/queries";
 import { PIGMENTS, type Tracker, type Widget, type WidgetDraft, type WidgetKind } from "@/lib/types";
 import { Sheet } from "../ui/Sheet";
 import { Button, Field, Segmented } from "../ui/controls";
-import { SIZES_FOR } from "./WidgetCard";
+import { SINGLE_KINDS, SIZES_FOR } from "./WidgetCard";
 
-const KIND_ICONS: Record<WidgetKind, typeof Flame> = { streak: Flame, completion: Percent, daily_chart: AudioWaveform, heatmap: Grid3x3 };
+const KIND_ICONS: Record<WidgetKind, typeof Flame> = {
+  drops: Zap,
+  streak: Flame,
+  completion: Percent,
+  daily_chart: AudioWaveform,
+  heatmap: Grid3x3,
+  sets: Dumbbell,
+};
 const PERIODS: Record<WidgetKind, Widget["period"][]> = {
   streak: [30],
   completion: [7, 30, 90, 365],
   daily_chart: [7, 30, 90],
   heatmap: [90, 365],
+  drops: [7, 30, 90, 365],
+  sets: [7, 30, 90],
 };
-const DEFAULT_SIZE: Record<WidgetKind, Widget["size"]> = { streak: "S", completion: "M", daily_chart: "L", heatmap: "L" };
+const DEFAULT_SIZE: Record<WidgetKind, Widget["size"]> = { streak: "S", completion: "M", daily_chart: "L", heatmap: "L", drops: "L", sets: "M" };
+
+/** Trackers a kind can show. */
+function poolFor(kind: WidgetKind, trackers: Tracker[]): Tracker[] {
+  if (kind === "daily_chart") return trackers.filter((tr) => tr.type !== "check");
+  if (kind === "sets") return trackers.filter((tr) => tr.type === "sets");
+  return trackers;
+}
 
 interface Props {
   open: boolean;
@@ -42,17 +58,18 @@ function Form({ widget, trackers, nextPosition, onClose }: Omit<Props, "open">) 
     () => widget ?? { kind: "completion", tracker_ids: [], period: 30, size: "M", position: nextPosition },
   );
 
-  const single = draft.kind === "streak" || draft.kind === "daily_chart";
-  const eligible = draft.kind === "daily_chart" ? trackers.filter((tr) => tr.type !== "check") : trackers;
+  const single = SINGLE_KINDS.includes(draft.kind);
+  const eligible = poolFor(draft.kind, trackers);
 
   const setKind = (kind: WidgetKind) => {
-    const singleNext = kind === "streak" || kind === "daily_chart";
-    const pool = kind === "daily_chart" ? trackers.filter((tr) => tr.type !== "check") : trackers;
+    const singleNext = SINGLE_KINDS.includes(kind);
+    const pool = poolFor(kind, trackers);
     const keep = draft.tracker_ids.filter((id) => pool.some((tr) => tr.id === id));
     setDraft({
       ...draft,
       kind,
-      tracker_ids: singleNext ? [keep[0] ?? pool[0]?.id].filter(Boolean) : keep,
+      // A drop counts every active tracker.
+      tracker_ids: kind === "drops" ? [] : singleNext ? [keep[0] ?? pool[0]?.id].filter(Boolean) : keep,
       period: PERIODS[kind].includes(draft.period) ? draft.period : PERIODS[kind][PERIODS[kind].length > 2 ? 1 : 0],
       size: DEFAULT_SIZE[kind],
     });
@@ -97,21 +114,24 @@ function Form({ widget, trackers, nextPosition, onClose }: Omit<Props, "open">) 
         </div>
       </Field>
 
-      <Field label={single ? t.dashboard.tracker : t.dashboard.trackers}>
-        {draft.kind === "daily_chart" && eligible.length === 0 && <p className="text-sm text-dim">{t.dashboard.noNumeric}</p>}
-        <div className="flex flex-col gap-1.5">
-          {!single && (
-            <Option active={draft.tracker_ids.length === 0} color="var(--color-cyan)" onClick={() => setDraft({ ...draft, tracker_ids: [] })}>
-              {t.dashboard.allTrackers}
-            </Option>
-          )}
-          {eligible.map((tr) => (
-            <Option key={tr.id} active={draft.tracker_ids.includes(tr.id)} color={PIGMENTS[tr.color]} onClick={() => toggleTracker(tr.id)}>
-              <span aria-hidden>{tr.emoji}</span> {tr.name}
-            </Option>
-          ))}
-        </div>
-      </Field>
+      {draft.kind !== "drops" && (
+        <Field label={single ? t.dashboard.tracker : t.dashboard.trackers}>
+          {draft.kind === "daily_chart" && eligible.length === 0 && <p className="text-sm text-dim">{t.dashboard.noNumeric}</p>}
+          {draft.kind === "sets" && eligible.length === 0 && <p className="text-sm text-dim">{t.dashboard.noSets}</p>}
+          <div className="flex flex-col gap-1.5">
+            {!single && (
+              <Option active={draft.tracker_ids.length === 0} color="var(--color-cyan)" onClick={() => setDraft({ ...draft, tracker_ids: [] })}>
+                {t.dashboard.allTrackers}
+              </Option>
+            )}
+            {eligible.map((tr) => (
+              <Option key={tr.id} active={draft.tracker_ids.includes(tr.id)} color={PIGMENTS[tr.color]} onClick={() => toggleTracker(tr.id)}>
+                <span aria-hidden>{tr.emoji}</span> {tr.name}
+              </Option>
+            ))}
+          </div>
+        </Field>
+      )}
 
       {PERIODS[draft.kind].length > 1 && (
         <Field label={t.dashboard.period}>

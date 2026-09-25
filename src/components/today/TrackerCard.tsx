@@ -8,17 +8,18 @@ import { isDone } from "@/lib/habits";
 import { useI18n } from "@/lib/i18n/provider";
 import { PIGMENTS, type Tracker } from "@/lib/types";
 import type { Origin } from "../fx/bus";
-import { CheckPad, CounterControl, NumberControl, TimeControl } from "./TrackerControls";
+import { CheckPad, CounterControl, NumberControl, SetsControl, TimeControl } from "./TrackerControls";
 import type { CommitGesture } from "./useCommit";
 
 export interface CardProps {
   tracker: Tracker;
   value: number | undefined;
+  sets?: number[];
   streak: number;
-  onCommit: (value: number | null, gesture: CommitGesture, origin: Origin) => void;
+  onCommit: (value: number | null, gesture: CommitGesture, origin: Origin, sets?: number[]) => void;
 }
 
-export function TrackerCard({ tracker, value, streak, onCommit }: CardProps) {
+export function TrackerCard({ tracker, value, sets, streak, onCommit }: CardProps) {
   const { t, locale } = useI18n();
   const color = PIGMENTS[tracker.color];
   const done = isDone(tracker, value);
@@ -91,6 +92,7 @@ export function TrackerCard({ tracker, value, streak, onCommit }: CardProps) {
       {glow}
       {header}
       {tracker.type === "counter" && <CounterControl tracker={tracker} value={value} color={color} done={done} onCommit={onCommit} />}
+      {tracker.type === "sets" && <SetsControl tracker={tracker} value={value} sets={sets} color={color} done={done} onCommit={onCommit} />}
       {tracker.type === "number" && <NumberControl tracker={tracker} value={value} color={color} onCommit={onCommit} />}
       {tracker.type === "time" && <TimeControl tracker={tracker} value={value} color={color} onCommit={onCommit} />}
     </motion.div>
