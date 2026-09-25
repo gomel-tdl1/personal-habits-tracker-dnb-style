@@ -1,0 +1,22 @@
+{
+  "name": "@drop/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "iOS app: the web app's static build inside a Capacitor shell.",
+  "scripts": {
+    "build:web": "DROP_TARGET=mobile pnpm --filter @drop/web build",
+    "sync": "pnpm build:web && cap sync ios",
+    "ios": "pnpm sync && cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "8.5.2",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "typescript": "^5.9.3"
+  }
+}
