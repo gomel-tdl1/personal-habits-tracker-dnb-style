@@ -26,11 +26,11 @@ export function useCommit({ trackers, map, date }: Args) {
   const { mutate } = useSetEntry();
 
   return useCallback(
-    (tracker: Tracker, value: number | null, gesture: CommitGesture, origin: Origin) => {
+    (tracker: Tracker, value: number | null, gesture: CommitGesture, origin: Origin, sets?: number[]) => {
       const prev = map.get(entryKey(tracker.id, date));
       const next = value ?? undefined;
-      if (prev === next) return;
-      mutate({ trackerId: tracker.id, date, value });
+      if (prev === next && !sets) return;
+      mutate({ trackerId: tracker.id, date, value, sets });
 
       const color = PIGMENTS[tracker.color];
       const index = Math.max(0, trackers.findIndex((t) => t.id === tracker.id));

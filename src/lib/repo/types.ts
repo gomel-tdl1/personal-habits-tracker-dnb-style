@@ -8,8 +8,8 @@ export interface Repo {
 
   /** Entries with date >= from. */
   listEntries(from: string): Promise<Entry[]>;
-  /** `null` removes the entry. */
-  setEntry(trackerId: string, date: string, value: number | null): Promise<void>;
+  /** `null` removes the entry. `sets` is stored for sets trackers only. */
+  setEntry(trackerId: string, date: string, value: number | null, sets?: number[]): Promise<void>;
 
   listWidgets(): Promise<Widget[]>;
   saveWidget(draft: WidgetDraft): Promise<Widget>;

@@ -17,7 +17,7 @@ export function DashboardView() {
   const widgetsQuery = useWidgets();
   const trackersQuery = useTrackers();
   const active = useActiveTrackers();
-  const { map, isLoading: entriesLoading } = useEntryMap();
+  const { map, sets, isLoading: entriesLoading } = useEntryMap();
   const reorder = useReorderWidgets();
   const [editing, setEditing] = useState(false);
   const [sheet, setSheet] = useState<{ widget: Widget | null } | null>(null);
@@ -70,6 +70,7 @@ export function DashboardView() {
                     trackers={trackersQuery.data ?? []}
                     allActive={active}
                     map={map}
+                    sets={sets}
                     today={today!}
                     editing={editing}
                     handle={handle}

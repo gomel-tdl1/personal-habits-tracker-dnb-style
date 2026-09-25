@@ -4,11 +4,13 @@ import { GripVertical, Pencil, Trash } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useI18n } from "@/lib/i18n/provider";
 import { useDeleteWidget, useSaveWidget } from "@/lib/queries";
-import type { EntryMap, Tracker, Widget, WidgetSize } from "@/lib/types";
+import type { EntryMap, SetsMap, Tracker, Widget, WidgetSize } from "@/lib/types";
 import { Segmented } from "../ui/controls";
 import { CompletionWidget } from "./widgets/Completion";
 import { DailyChart } from "./widgets/DailyChart";
+import { DropsWidget } from "./widgets/Drops";
 import { Heatmap } from "./widgets/Heatmap";
+import { SetsWidget } from "./widgets/Sets";
 import { StreakWidget } from "./widgets/Streak";
 
 export const SPAN: Record<WidgetSize, string> = {
@@ -18,13 +20,18 @@ export const SPAN: Record<WidgetSize, string> = {
 };
 
 /** Sizes a widget kind can use; charts need at least two columns. */
-export const SIZES_FOR = (kind: Widget["kind"]): WidgetSize[] => (kind === "streak" || kind === "completion" ? ["S", "M", "L"] : ["M", "L"]);
+export const SIZES_FOR = (kind: Widget["kind"]): WidgetSize[] =>
+  kind === "streak" || kind === "completion" || kind === "drops" ? ["S", "M", "L"] : ["M", "L"];
+
+/** Kinds that show one tracker. */
+export const SINGLE_KINDS: Widget["kind"][] = ["streak", "daily_chart", "sets"];
 
 interface Props {
   widget: Widget;
   trackers: Tracker[];
   allActive: Tracker[];
   map: EntryMap;
+  sets: SetsMap;
   today: string;
   editing: boolean;
   handle: React.HTMLAttributes<HTMLElement>;
@@ -32,16 +39,16 @@ interface Props {
   onEdit: () => void;
 }
 
-export function WidgetCard({ widget, trackers, allActive, map, today, editing, handle, dragging, onEdit }: Props) {
+export function WidgetCard({ widget, trackers, allActive, map, sets, today, editing, handle, dragging, onEdit }: Props) {
   const { t } = useI18n();
   const save = useSaveWidget();
   const remove = useDeleteWidget();
-  const scoped = widget.tracker_ids.length === 0 ? allActive : widget.tracker_ids.flatMap((id) => trackers.find((tr) => tr.id === id) ?? []);
+  const scoped = widget.tracker_ids.length === 0 || widget.kind === "drops" ? allActive : widget.tracker_ids.flatMap((id) => trackers.find((tr) => tr.id === id) ?? []);
   const single = scoped[0];
-  const needsSingle = widget.kind === "streak" || widget.kind === "daily_chart";
+  const needsSingle = SINGLE_KINDS.includes(widget.kind);
 
   const subtitle =
-    widget.tracker_ids.length === 0
+    widget.tracker_ids.length === 0 || widget.kind === "drops"
       ? t.dashboard.allTrackers
       : scoped.length === 1
         ? `${scoped[0].emoji} ${scoped[0].name}`
@@ -86,7 +93,11 @@ export function WidgetCard({ widget, trackers, allActive, map, today, editing, h
         ) : widget.kind === "streak" ? (
           <StreakWidget tracker={single} map={map} today={today} />
         ) : widget.kind === "daily_chart" ? (
-          <DailyChart tracker={single} map={map} today={today} period={widget.period} />
+          <DailyChart tracker={single} map={map} sets={sets} today={today} period={widget.period} />
+        ) : widget.kind === "sets" ? (
+          <SetsWidget tracker={single} map={map} sets={sets} today={today} period={widget.period} size={widget.size} />
+        ) : widget.kind === "drops" ? (
+          <DropsWidget trackers={scoped} map={map} today={today} period={widget.period} size={widget.size} />
         ) : widget.kind === "heatmap" ? (
           <Heatmap trackers={scoped} map={map} today={today} period={widget.period} />
         ) : (

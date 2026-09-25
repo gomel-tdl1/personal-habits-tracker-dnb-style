@@ -4,10 +4,10 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { addDays, fromKey, rangeKeys } from "@/lib/dates";
 import { formatValue, localeTag } from "@/lib/format";
-import { aroundGoal, isDone, isScheduled, valueOf } from "@/lib/habits";
+import { isDone, isScheduled, onDayAxis, valueOf } from "@/lib/habits";
 import { useWidth } from "@/lib/hooks/useWidth";
 import { useI18n } from "@/lib/i18n/provider";
-import { PIGMENTS, type EntryMap, type Tracker } from "@/lib/types";
+import { entryKey, PIGMENTS, type EntryMap, type SetsMap, type Tracker } from "@/lib/types";
 import { Tooltip, type TipState } from "./Tooltip";
 
 const H = 160;
@@ -18,9 +18,13 @@ interface Props {
   map: EntryMap;
   today: string;
   period: number;
+  /** Given for a sets tracker: bars are stacked one segment per set. */
+  sets?: SetsMap;
+  /** Hide the average above the chart when the widget shows its own numbers. */
+  summary?: boolean;
 }
 
-export function DailyChart({ tracker, map, today, period }: Props) {
+export function DailyChart({ tracker, map, today, period, sets, summary = true }: Props) {
   const { t, locale } = useI18n();
   const [ref, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
@@ -28,11 +32,12 @@ export function DailyChart({ tracker, map, today, period }: Props) {
 
   const days = rangeKeys(addDays(today, -(period - 1)), today);
   const raw = days.map((date) => valueOf(map, tracker, date));
-  // Clock times are plotted on the goal's side of midnight, so 01:00 sits above 23:00.
-  const anchor = tracker.goal ?? raw.find((v) => v !== undefined) ?? 0;
+  // Clock times are plotted on the habit day (04:00–04:00), so 01:00 sits above 23:00.
+  const axis = (v: number) => (tracker.type === "time" ? onDayAxis(v) : v);
+  const goal = tracker.goal !== null ? axis(tracker.goal) : null;
   const points = days.map((date, i) => ({
     date,
-    value: tracker.type === "time" && raw[i] !== undefined ? aroundGoal(raw[i], anchor) : raw[i],
+    value: raw[i] !== undefined ? axis(raw[i]) : undefined,
     scheduled: isScheduled(tracker, date),
   }));
   const values = points.flatMap((p) => (p.value === undefined ? [] : [p.value]));
@@ -40,8 +45,8 @@ export function DailyChart({ tracker, map, today, period }: Props) {
   if (tracker.type === "check") return <p className="text-sm text-dim">{t.dashboard.noNumeric}</p>;
 
   const fmt = (v: number) => formatValue(tracker, v, locale);
-  const bars = tracker.type === "counter";
-  const candidates = [...values, ...(tracker.goal !== null ? [tracker.goal] : [])];
+  const bars = tracker.type === "counter" || tracker.type === "sets";
+  const candidates = [...values, ...(goal !== null ? [goal] : [])];
   let lo = bars ? 0 : Math.min(...candidates);
   let hi = Math.max(...candidates, bars ? 1 : -Infinity);
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) [lo, hi] = [0, 1];
@@ -86,7 +91,7 @@ export function DailyChart({ tracker, map, today, period }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-2 flex items-baseline gap-2">
+      <div className={`mb-2 flex items-baseline gap-2 ${summary ? "" : "hidden"}`}>
         <span className="display-tight tabular text-4xl font-bold">{avg !== null ? fmt(avg) : "—"}</span>
         <span className="text-sm text-dim">
           {t.dashboard.avg}
@@ -117,17 +122,17 @@ export function DailyChart({ tracker, map, today, period }: Props) {
               <g key={i}>
                 <line x1={PAD.left} x2={width - PAD.right} y1={y(v)} y2={y(v)} stroke="var(--color-rig)" strokeWidth={1} strokeOpacity={0.6} />
                 <text x={PAD.left - 6} y={y(v)} dy="0.32em" textAnchor="end" className="fill-faint text-[10px] tabular">
-                  {fmt(tracker.type === "counter" ? Math.round(v) : v)}
+                  {fmt(bars ? Math.round(v) : v)}
                 </text>
               </g>
             ))}
 
-            {tracker.goal !== null && (
+            {goal !== null && (
               <line
                 x1={PAD.left}
                 x2={width - PAD.right}
-                y1={y(tracker.goal)}
-                y2={y(tracker.goal)}
+                y1={y(goal)}
+                y2={y(goal)}
                 stroke="var(--color-ink)"
                 strokeOpacity={0.55}
                 strokeDasharray="4 4"
@@ -152,14 +157,38 @@ export function DailyChart({ tracker, map, today, period }: Props) {
                   const x0 = x(i) - w / 2;
                   const d = `M${x0},${base} V${top + r} Q${x0},${top} ${x0 + r},${top} H${x0 + w - r} Q${x0 + w},${top} ${x0 + w},${top + r} V${base} Z`;
                   const done = isDone(tracker, p.value);
-                  return (
-                    <path
-                      key={p.date}
-                      d={d}
-                      fill={color}
-                      fillOpacity={active === null || active === i ? (done ? 1 : 0.45) : done ? 0.6 : 0.25}
-                    />
-                  );
+                  const opacity = active === null || active === i ? (done ? 1 : 0.45) : done ? 0.6 : 0.25;
+                  const parts = sets?.get(entryKey(tracker.id, p.date));
+                  if (parts && parts.length > 1) {
+                    // Clip the stack to the rounded bar, then cut it into one slice per set.
+                    let acc = 0;
+                    return (
+                      <g key={p.date}>
+                        <clipPath id={`bar-${tracker.id}-${i}`}>
+                          <path d={d} />
+                        </clipPath>
+                        <g clipPath={`url(#bar-${tracker.id}-${i})`}>
+                          {parts.map((n, k) => {
+                            const y0 = y(acc + n);
+                            const y1 = y(acc);
+                            acc += n;
+                            return (
+                              <rect
+                                key={k}
+                                x={x0}
+                                y={y0}
+                                width={w}
+                                height={Math.max(0, y1 - y0 - (k < parts.length - 1 && y1 - y0 > 3 ? 1.5 : 0))}
+                                fill={color}
+                                fillOpacity={opacity * (k % 2 ? 0.7 : 1)}
+                              />
+                            );
+                          })}
+                        </g>
+                      </g>
+                    );
+                  }
+                  return <path key={p.date} d={d} fill={color} fillOpacity={opacity} />;
                 })}
               </motion.g>
             )}

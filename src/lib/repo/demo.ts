@@ -4,7 +4,7 @@ import type { Repo } from "./types";
 
 /** localStorage-backed repo for local development without Supabase. */
 
-const KEY = "habits-demo-v1";
+const KEY = "habits-demo-v2";
 
 interface Store {
   trackers: Tracker[];
@@ -22,6 +22,7 @@ function seed(): Store {
     { id: uid(), name: "Утренняя зарядка", emoji: "🔥", color: "magenta", type: "check", goal: null, goal_op: "gte", unit: null, step: 1, days: [], position: 1, archived_at: null, created_at: created },
     { id: uid(), name: "Вода", emoji: "💧", color: "cyan", type: "counter", goal: 8, goal_op: "gte", unit: "стак.", step: 1, days: [], position: 2, archived_at: null, created_at: created },
     { id: uid(), name: "Сон", emoji: "🌙", color: "uv", type: "number", goal: 7.5, goal_op: "gte", unit: "ч", step: 0.5, days: [], position: 3, archived_at: null, created_at: created },
+    { id: uid(), name: "Отжимания", emoji: "💪", color: "lime", type: "sets", goal: 100, goal_op: "gte", unit: "раз", step: 20, days: [], position: 4, archived_at: null, created_at: created },
   ];
   const entries: Entry[] = [];
   const today = todayKey();
@@ -32,14 +33,26 @@ function seed(): Store {
     if (r() < 0.7) entries.push({ tracker_id: trackers[1].id, date, value: 1 });
     entries.push({ tracker_id: trackers[2].id, date, value: Math.round(3 + r() * 7) });
     if (r() < 0.9) entries.push({ tracker_id: trackers[3].id, date, value: Math.round((6 + r() * 3) * 2) / 2 });
+    if (r() < 0.85) {
+      const sets: number[] = [];
+      const target = 60 + Math.round(r() * 60);
+      for (let sum = 0; sum < target; ) {
+        const n = Math.min(target - sum, 10 + Math.round(r() * 4) * 5);
+        sets.push(n);
+        sum += n;
+      }
+      entries.push({ tracker_id: trackers[4].id, date, value: sets.reduce((a, b) => a + b, 0), sets });
+    }
   }
   const now = new Date().toISOString();
   const widgets: Widget[] = [
-    { id: uid(), kind: "completion", tracker_ids: [], period: 30, size: "M", position: 0, created_at: now },
-    { id: uid(), kind: "streak", tracker_ids: [trackers[1].id], period: 30, size: "S", position: 1, created_at: now },
-    { id: uid(), kind: "streak", tracker_ids: [trackers[2].id], period: 30, size: "S", position: 2, created_at: now },
-    { id: uid(), kind: "daily_chart", tracker_ids: [trackers[2].id], period: 30, size: "L", position: 3, created_at: now },
-    { id: uid(), kind: "heatmap", tracker_ids: [], period: 90, size: "L", position: 4, created_at: now },
+    { id: uid(), kind: "drops", tracker_ids: [], period: 30, size: "L", position: 0, created_at: now },
+    { id: uid(), kind: "completion", tracker_ids: [], period: 30, size: "M", position: 1, created_at: now },
+    { id: uid(), kind: "streak", tracker_ids: [trackers[1].id], period: 30, size: "S", position: 2, created_at: now },
+    { id: uid(), kind: "streak", tracker_ids: [trackers[2].id], period: 30, size: "S", position: 3, created_at: now },
+    { id: uid(), kind: "sets", tracker_ids: [trackers[4].id], period: 30, size: "L", position: 4, created_at: now },
+    { id: uid(), kind: "daily_chart", tracker_ids: [trackers[2].id], period: 30, size: "L", position: 5, created_at: now },
+    { id: uid(), kind: "heatmap", tracker_ids: [], period: 90, size: "L", position: 6, created_at: now },
   ];
   return { trackers, entries, widgets };
 }
@@ -104,10 +117,10 @@ export const demoRepo: Repo = {
     await wait();
     return load().entries.filter((e) => e.date >= from);
   },
-  async setEntry(trackerId, date, value) {
+  async setEntry(trackerId, date, value, sets) {
     mutate((s) => {
       s.entries = s.entries.filter((e) => !(e.tracker_id === trackerId && e.date === date));
-      if (value !== null) s.entries.push({ tracker_id: trackerId, date, value });
+      if (value !== null) s.entries.push({ tracker_id: trackerId, date, value, sets: sets ?? null });
     });
   },
   async listWidgets() {

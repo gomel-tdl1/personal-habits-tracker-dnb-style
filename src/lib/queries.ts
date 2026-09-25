@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { addDays, todayKey } from "./dates";
 import { repo } from "./repo";
-import { entryKey, type Entry, type EntryMap, type Tracker, type TrackerDraft, type Widget, type WidgetDraft } from "./types";
+import { entryKey, type Entry, type EntryMap, type SetsMap, type Tracker, type TrackerDraft, type Widget, type WidgetDraft } from "./types";
 
 export const HISTORY_DAYS = 400;
 export const historyFrom = () => addDays(todayKey(), -HISTORY_DAYS);
@@ -75,29 +75,34 @@ export function useEntries() {
   return useQuery({ queryKey: keys.entries, queryFn: () => repo.listEntries(historyFrom()) });
 }
 
-export function useEntryMap(): { map: EntryMap; isLoading: boolean } {
+export function useEntryMap(): { map: EntryMap; sets: SetsMap; isLoading: boolean } {
   const { data, isLoading } = useEntries();
   const map = useMemo(() => new Map((data ?? []).map((e) => [entryKey(e.tracker_id, e.date), e.value])), [data]);
-  return { map, isLoading };
+  const sets = useMemo(
+    () => new Map((data ?? []).flatMap((e) => (e.sets?.length ? [[entryKey(e.tracker_id, e.date), e.sets] as const] : []))),
+    [data],
+  );
+  return { map, sets, isLoading };
 }
 
 interface SetEntryVars {
   trackerId: string;
   date: string;
   value: number | null;
+  sets?: number[];
 }
 
 export function useSetEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ trackerId, date, value }: SetEntryVars) => repo.setEntry(trackerId, date, value),
+    mutationFn: ({ trackerId, date, value, sets }: SetEntryVars) => repo.setEntry(trackerId, date, value, sets),
     // Serialize entry writes so rapid taps land in order.
     scope: { id: "entries" },
-    onMutate: ({ trackerId, date, value }) => {
+    onMutate: ({ trackerId, date, value, sets }) => {
       const previous = qc.getQueryData<Entry[]>(keys.entries);
       qc.setQueryData<Entry[]>(keys.entries, (list = []) => {
         const rest = list.filter((e) => !(e.tracker_id === trackerId && e.date === date));
-        return value === null ? rest : [...rest, { tracker_id: trackerId, date, value }];
+        return value === null ? rest : [...rest, { tracker_id: trackerId, date, value, sets: sets ?? null }];
       });
       return { previous };
     },

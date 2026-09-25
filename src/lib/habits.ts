@@ -1,4 +1,4 @@
-import { addDays, dayKeyOf, isoWeekday } from "./dates";
+import { addDays, DAY_START_HOUR, dayKeyOf, isoWeekday } from "./dates";
 import { entryKey, type EntryMap, type Tracker } from "./types";
 
 export function createdKey(t: Tracker): string {
@@ -6,12 +6,12 @@ export function createdKey(t: Tracker): string {
 }
 
 /**
- * A clock time (minutes after midnight) read on the goal's side of midnight:
- * the nearest equivalent within 12 hours of the goal. For a 23:00 bedtime,
- * 01:00 becomes 25:00 (late); for a 07:00 wake-up, 06:30 stays 06:30.
+ * A clock time (minutes after midnight) placed on the habit day, which runs
+ * from 04:00 to 04:00: the small hours come after the evening. 01:00 becomes
+ * 25:00, later than a 23:00 bedtime; 20:00 stays 20:00, later than a 07:00 wake-up.
  */
-export function aroundGoal(minutes: number, goal: number): number {
-  return minutes + Math.round((goal - minutes) / 1440) * 1440;
+export function onDayAxis(minutes: number): number {
+  return minutes < DAY_START_HOUR * 60 ? minutes + 1440 : minutes;
 }
 
 export function isScheduled(t: Tracker, date: string): boolean {
@@ -22,9 +22,10 @@ export function isScheduled(t: Tracker, date: string): boolean {
 export function isDone(t: Tracker, value: number | undefined): boolean {
   if (value === undefined || value === null) return false;
   if (t.type === "check") return value >= 1;
-  if (t.goal === null) return t.type === "counter" ? value > 0 : true;
-  const v = t.type === "time" ? aroundGoal(value, t.goal) : value;
-  return t.goal_op === "gte" ? v >= t.goal : v <= t.goal;
+  if (t.goal === null) return t.type === "counter" || t.type === "sets" ? value > 0 : true;
+  const v = t.type === "time" ? onDayAxis(value) : value;
+  const goal = t.type === "time" ? onDayAxis(t.goal) : t.goal;
+  return t.goal_op === "gte" ? v >= goal : v <= goal;
 }
 
 export function progress(t: Tracker, value: number | undefined): number {
@@ -102,4 +103,57 @@ export function dayScore(trackers: Tracker[], map: EntryMap, date: string): { do
     if (doneOn(t, map, date)) done++;
   }
   return { done, scheduled };
+}
+
+/** A drop: every tracker scheduled that day is done. */
+export function isDrop(trackers: Tracker[], map: EntryMap, date: string): boolean {
+  const { done, scheduled } = dayScore(trackers, map, date);
+  return scheduled > 0 && done === scheduled;
+}
+
+export interface DropStats {
+  drops: number;
+  /** Days with something scheduled; an unfinished today is left out. */
+  days: number;
+  rate: number;
+  /** Drops in a row up to today; days with nothing scheduled don't break it. */
+  current: number;
+  best: number;
+}
+
+export function dropStats(trackers: Tracker[], map: EntryMap, from: string, today: string): DropStats {
+  const start = trackers.reduce((min, t) => (createdKey(t) < min ? createdKey(t) : min), today);
+  const counts = (day: string) => {
+    const { done, scheduled } = dayScore(trackers, map, day);
+    return { scheduled, drop: scheduled > 0 && done === scheduled };
+  };
+
+  let drops = 0;
+  let days = 0;
+  for (let day = from; day <= today; day = addDays(day, 1)) {
+    const { scheduled, drop } = counts(day);
+    if (!scheduled || (day === today && !drop)) continue;
+    days++;
+    if (drop) drops++;
+  }
+
+  let current = 0;
+  let day = counts(today).drop ? today : addDays(today, -1);
+  for (; day >= start; day = addDays(day, -1)) {
+    const { scheduled, drop } = counts(day);
+    if (!scheduled) continue;
+    if (!drop) break;
+    current++;
+  }
+
+  let best = 0;
+  let run = 0;
+  for (let d = start; d <= today; d = addDays(d, 1)) {
+    const { scheduled, drop } = counts(d);
+    if (!scheduled) continue;
+    if (drop) best = Math.max(best, ++run);
+    else if (d !== today) run = 0;
+  }
+
+  return { drops, days, rate: days ? drops / days : 0, current, best };
 }

@@ -31,7 +31,7 @@ function Day({ today }: { today: string }) {
 
   const trackersQuery = useTrackers();
   const active = useActiveTrackers();
-  const { map, isLoading: entriesLoading } = useEntryMap();
+  const { map, sets, isLoading: entriesLoading } = useEntryMap();
   const scheduled = active.filter((tr) => isScheduled(tr, date));
   const commit = useCommit({ trackers: active, map, date });
 
@@ -92,8 +92,9 @@ function Day({ today }: { today: string }) {
                     key={tr.id}
                     tracker={tr}
                     value={map.get(entryKey(tr.id, date))}
+                    sets={sets.get(entryKey(tr.id, date))}
                     streak={currentStreak(tr, map, date)}
-                    onCommit={(value, gesture, origin) => commit(tr, value, gesture, origin)}
+                    onCommit={(value, gesture, origin, s) => commit(tr, value, gesture, origin, s)}
                   />
                 ))
               )}
