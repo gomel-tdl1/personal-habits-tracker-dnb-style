@@ -110,7 +110,7 @@ const ru = {
     kinds: { heatmap: "Карта дней", daily_chart: "График по дням", streak: "Серия", completion: "Выполнение" },
     kindHints: {
       heatmap: "Сетка дней, как секвенсор",
-      daily_chart: "Значения трекера за период",
+      daily_chart: "Сравнение трекеров за период",
       streak: "Текущая и лучшая серия",
       completion: "Процент выполненных дней",
     },
@@ -127,6 +127,7 @@ const ru = {
     avg: "Среднее",
     doneOf: (d: number, s: number) => `${d} из ${s} дней`,
     noNumeric: "Для графика нужен трекер типа счётчик, число или время.",
+    sameType: "Выбери один или несколько трекеров одного типа и с одинаковыми единицами измерения. Чтобы сменить тип, сначала сними выбранные трекеры.",
     noData: "Пока нет данных за этот период",
     less: "Меньше",
     more: "Больше",
@@ -246,7 +247,7 @@ const en: Dict = {
     kinds: { heatmap: "Day map", daily_chart: "Daily chart", streak: "Streak", completion: "Completion" },
     kindHints: {
       heatmap: "Grid of days, like a step sequencer",
-      daily_chart: "Tracker values over time",
+      daily_chart: "Compare trackers over time",
       streak: "Current and best streak",
       completion: "Share of completed days",
     },
@@ -263,6 +264,7 @@ const en: Dict = {
     avg: "Average",
     doneOf: (d, s) => `${d} of ${s} days`,
     noNumeric: "A chart needs a counter, number or time tracker.",
+    sameType: "Select one or more trackers with the same type and units. Deselect the current trackers to change type.",
     noData: "No data for this period yet",
     less: "Less",
     more: "More",

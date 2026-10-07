@@ -86,7 +86,7 @@ export function WidgetCard({ widget, trackers, allActive, map, today, editing, h
         ) : widget.kind === "streak" ? (
           <StreakWidget tracker={single} map={map} today={today} />
         ) : widget.kind === "daily_chart" ? (
-          <DailyChart tracker={single} map={map} today={today} period={widget.period} />
+          <DailyChart trackers={scoped} map={map} today={today} period={widget.period} />
         ) : widget.kind === "heatmap" ? (
           <Heatmap trackers={scoped} map={map} today={today} period={widget.period} />
         ) : (

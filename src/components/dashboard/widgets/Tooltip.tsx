@@ -8,6 +8,7 @@ export interface TipState {
   value: string;
   label: string;
   color?: string;
+  rows?: { name: string; value: string; color: string }[];
 }
 
 /** Positioned inside a `relative` chart container. Value leads, label follows. */
@@ -24,10 +25,16 @@ export function Tooltip({ tip }: { tip: TipState | null }) {
           className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-rig bg-stage/95 px-2.5 py-1.5 text-xs shadow-lg backdrop-blur"
           style={{ left: tip.x, top: tip.y - 10 }}
         >
-          <div className="flex items-center gap-1.5">
+          {tip.rows ? tip.rows.map((row, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span className="h-0.5 w-3 shrink-0 rounded-full" style={{ background: row.color }} aria-hidden />
+              <span className="max-w-28 truncate text-dim">{row.name}</span>
+              <span className="ml-auto font-display tabular text-sm font-semibold text-ink">{row.value}</span>
+            </div>
+          )) : <div className="flex items-center gap-1.5">
             {tip.color && <span className="h-0.5 w-3 rounded-full" style={{ background: tip.color }} aria-hidden />}
             <span className="font-display tabular text-sm font-semibold text-ink">{tip.value}</span>
-          </div>
+          </div>}
           <div className="mt-0.5 text-dim">{tip.label}</div>
         </motion.div>
       )}

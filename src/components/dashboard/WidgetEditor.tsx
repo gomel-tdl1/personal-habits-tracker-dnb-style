@@ -2,6 +2,7 @@
 
 import { AudioWaveform, Check, Flame, Grid3x3, Percent } from "lucide-react";
 import { useState } from "react";
+import { compatibleChartTrackers } from "@/lib/chart";
 import { useI18n } from "@/lib/i18n/provider";
 import { useSaveWidget } from "@/lib/queries";
 import { PIGMENTS, type Tracker, type Widget, type WidgetDraft, type WidgetKind } from "@/lib/types";
@@ -39,20 +40,28 @@ function Form({ widget, trackers, nextPosition, onClose }: Omit<Props, "open">) 
   const { t } = useI18n();
   const save = useSaveWidget();
   const [draft, setDraft] = useState<WidgetDraft>(
-    () => widget ?? { kind: "completion", tracker_ids: [], period: 30, size: "M", position: nextPosition },
+    () => {
+      if (!widget) return { kind: "completion", tracker_ids: [], period: 30, size: "M", position: nextPosition };
+      if (widget.kind !== "daily_chart") return widget;
+      const existing = widget.tracker_ids.flatMap((id) => trackers.find((tr) => tr.id === id) ?? []);
+      return { ...widget, tracker_ids: compatibleChartTrackers(existing).map((tr) => tr.id) };
+    },
   );
 
-  const single = draft.kind === "streak" || draft.kind === "daily_chart";
+  const single = draft.kind === "streak";
+  const chart = draft.kind === "daily_chart";
   const eligible = draft.kind === "daily_chart" ? trackers.filter((tr) => tr.type !== "check") : trackers;
+  const selected = draft.tracker_ids.flatMap((id) => eligible.find((tr) => tr.id === id) ?? []);
 
   const setKind = (kind: WidgetKind) => {
-    const singleNext = kind === "streak" || kind === "daily_chart";
+    const singleNext = kind === "streak";
     const pool = kind === "daily_chart" ? trackers.filter((tr) => tr.type !== "check") : trackers;
     const keep = draft.tracker_ids.filter((id) => pool.some((tr) => tr.id === id));
+    const chartIds = compatibleChartTrackers(keep.flatMap((id) => pool.find((tr) => tr.id === id) ?? [])).map((tr) => tr.id);
     setDraft({
       ...draft,
       kind,
-      tracker_ids: singleNext ? [keep[0] ?? pool[0]?.id].filter(Boolean) : keep,
+      tracker_ids: singleNext ? [keep[0] ?? pool[0]?.id].filter(Boolean) : kind === "daily_chart" ? (chartIds.length ? chartIds : pool.slice(0, 1).map((tr) => tr.id)) : keep,
       period: PERIODS[kind].includes(draft.period) ? draft.period : PERIODS[kind][PERIODS[kind].length > 2 ? 1 : 0],
       size: DEFAULT_SIZE[kind],
     });
@@ -64,7 +73,9 @@ function Form({ widget, trackers, nextPosition, onClose }: Omit<Props, "open">) 
     setDraft({ ...draft, tracker_ids: ids });
   };
 
-  const valid = !single || draft.tracker_ids.length === 1;
+  const valid = chart
+    ? selected.length > 0 && selected.length === draft.tracker_ids.length && compatibleChartTrackers(selected).length === selected.length
+    : !single || draft.tracker_ids.length === 1;
 
   return (
     <form
@@ -99,14 +110,15 @@ function Form({ widget, trackers, nextPosition, onClose }: Omit<Props, "open">) 
 
       <Field label={single ? t.dashboard.tracker : t.dashboard.trackers}>
         {draft.kind === "daily_chart" && eligible.length === 0 && <p className="text-sm text-dim">{t.dashboard.noNumeric}</p>}
+        {chart && eligible.length > 0 && <p className="mb-2 text-xs text-dim">{t.dashboard.sameType}</p>}
         <div className="flex flex-col gap-1.5">
-          {!single && (
+          {!single && !chart && (
             <Option active={draft.tracker_ids.length === 0} color="var(--color-cyan)" onClick={() => setDraft({ ...draft, tracker_ids: [] })}>
               {t.dashboard.allTrackers}
             </Option>
           )}
           {eligible.map((tr) => (
-            <Option key={tr.id} active={draft.tracker_ids.includes(tr.id)} color={PIGMENTS[tr.color]} onClick={() => toggleTracker(tr.id)}>
+            <Option key={tr.id} active={draft.tracker_ids.includes(tr.id)} disabled={chart && !draft.tracker_ids.includes(tr.id) && compatibleChartTrackers([...selected, tr]).length !== selected.length + 1} color={PIGMENTS[tr.color]} onClick={() => toggleTracker(tr.id)}>
               <span aria-hidden>{tr.emoji}</span> {tr.name}
             </Option>
           ))}
@@ -142,13 +154,14 @@ function Form({ widget, trackers, nextPosition, onClose }: Omit<Props, "open">) 
   );
 }
 
-function Option({ active, color, onClick, children }: { active: boolean; color: string; onClick: () => void; children: React.ReactNode }) {
+function Option({ active, disabled, color, onClick, children }: { active: boolean; disabled?: boolean; color: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
       aria-pressed={active}
+      disabled={disabled}
       onClick={onClick}
-      className="flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 text-left transition-colors"
+      className="flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40"
       style={{ borderColor: active ? color : "var(--color-rig)", background: active ? `color-mix(in oklab, ${color} 10%, transparent)` : undefined }}
     >
       <span className="truncate">{children}</span>
