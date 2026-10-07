@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, Check, Clock, Hash, Plus, Trash } from "lucide-react";
+import { Archive, ArchiveRestore, Check, Clock, Dumbbell, Hash, Plus, Trash } from "lucide-react";
 import { useState } from "react";
 import { formatMinutes, parseTime } from "@/lib/dates";
 import { useI18n } from "@/lib/i18n/provider";
@@ -11,7 +11,7 @@ import { Button, Field, Segmented, inputClass } from "../ui/controls";
 
 const EMOJIS = ["⚡", "🔥", "💧", "⏰", "🏃", "🧘", "💪", "📚", "🥗", "🌙", "☀️", "🚶", "🧠", "✍️", "🎧", "🚭", "🍎", "🦷", "💊", "🧹", "🎹", "🇬🇧", "💤", "🚴"];
 
-const TYPE_ICONS: Record<TrackerType, typeof Check> = { check: Check, counter: Plus, number: Hash, time: Clock };
+const TYPE_ICONS: Record<TrackerType, typeof Check> = { check: Check, counter: Plus, sets: Dumbbell, number: Hash, time: Clock };
 
 function blank(position: number): TrackerDraft {
   return { name: "", emoji: "⚡", color: "cyan", type: "check", goal: null, goal_op: "gte", unit: null, step: 1, days: [], position };
@@ -46,10 +46,10 @@ function EditorForm({ tracker, nextPosition, onClose }: Omit<Props, "open">) {
   const setType = (type: TrackerType) =>
     set({
       type,
-      goal: type === "time" ? 420 : type === "counter" ? 8 : null,
+      goal: type === "time" ? 420 : type === "counter" ? 8 : type === "sets" ? 100 : null,
       goal_op: type === "time" ? "lte" : "gte",
       unit: null,
-      step: type === "number" ? 0.5 : 1,
+      step: type === "number" ? 0.5 : type === "sets" ? 10 : 1,
     });
 
   const submit = (e: React.FormEvent) => {
@@ -144,7 +144,7 @@ function EditorForm({ tracker, nextPosition, onClose }: Omit<Props, "open">) {
                 disabled={Boolean(tracker) && !active}
                 aria-pressed={active}
                 onClick={() => setType(type)}
-                className="flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors disabled:opacity-30"
+                className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors disabled:opacity-30 ${type === "time" ? "col-span-2" : ""}`}
                 style={{ borderColor: active ? color : "var(--color-rig)", background: active ? `color-mix(in oklab, ${color} 10%, transparent)` : undefined }}
               >
                 <span className="flex items-center gap-2 font-medium">
@@ -217,7 +217,7 @@ function GoalFields({ draft, set, color }: { draft: TrackerDraft; set: (p: Parti
         <Segmented<"none" | GoalOp>
           value={hasGoal ? draft.goal_op : "none"}
           accent={color}
-          onChange={(v) => (v === "none" ? set({ goal: null }) : set({ goal_op: v, goal: draft.goal ?? (draft.type === "counter" ? 8 : 1) }))}
+          onChange={(v) => (v === "none" ? set({ goal: null }) : set({ goal_op: v, goal: draft.goal ?? ({ counter: 8, sets: 100 } as Partial<Record<TrackerType, number>>)[draft.type] ?? 1 }))}
           options={[
             { value: "none", label: t.trackers.noGoal },
             { value: "gte", label: t.trackers.atLeast },
@@ -240,7 +240,7 @@ function GoalFields({ draft, set, color }: { draft: TrackerDraft; set: (p: Parti
         <Field label={t.trackers.unit}>
           <input className={inputClass} maxLength={20} placeholder={t.trackers.unitPlaceholder} value={draft.unit ?? ""} onChange={(e) => set({ unit: e.target.value })} />
         </Field>
-        <Field label={t.trackers.step}>
+        <Field label={draft.type === "sets" ? t.trackers.setStep : t.trackers.step}>
           <input
             type="number"
             inputMode="decimal"

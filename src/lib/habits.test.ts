@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestStreak, completion, currentStreak, dayScore, isDone, isScheduled, progress } from "./habits";
+import { bestStreak, completion, currentStreak, dayScore, dropStats, isDone, isDrop, isScheduled, progress } from "./habits";
 import { entryKey, type EntryMap, type Tracker } from "./types";
 
 const base: Tracker = {
@@ -138,5 +138,60 @@ describe("dayScore", () => {
     const c = tracker({ id: "c", days: [2] });
     const map: EntryMap = new Map([[entryKey("a", "2026-09-14"), 1], [entryKey("b", "2026-09-14"), 3]]);
     expect(dayScore([a, b, c], map, "2026-09-14")).toEqual({ done: 1, scheduled: 2 });
+  });
+});
+
+describe("wake-up time and streaks", () => {
+  const wake = tracker({ type: "time", goal: 7 * 60, goal_op: "lte" });
+
+  it("an evening time is late for a morning goal", () => {
+    expect(isDone(wake, 20 * 60)).toBe(false);
+    expect(isDone(wake, 23 * 60 + 30)).toBe(false);
+  });
+  it("a small-hours time is late for a morning goal", () => {
+    expect(isDone(wake, 2 * 60)).toBe(false);
+  });
+  it("a late-logged day breaks the streak", () => {
+    const map = entries("t1", { "2026-09-10": 400, "2026-09-11": 400, "2026-09-12": 400, "2026-09-13": 20 * 60, "2026-09-14": 400 });
+    expect(currentStreak(wake, map, "2026-09-14")).toBe(1);
+    expect(bestStreak(wake, map, "2026-09-14")).toBe(3);
+  });
+  it("a bedtime just after midnight fits a 00:30 goal", () => {
+    const bed = tracker({ type: "time", goal: 30, goal_op: "lte" });
+    expect(isDone(bed, 23 * 60 + 30)).toBe(true);
+    expect(isDone(bed, 20)).toBe(true);
+    expect(isDone(bed, 60)).toBe(false);
+  });
+});
+
+describe("sets", () => {
+  it("is done when the sum reaches the goal", () => {
+    const t = tracker({ type: "sets", goal: 100 });
+    expect(isDone(t, 45)).toBe(false);
+    expect(isDone(t, 100)).toBe(true);
+    expect(progress(t, 50)).toBe(0.5);
+  });
+});
+
+describe("dropStats", () => {
+  const a = tracker({ id: "a" });
+  const b = tracker({ id: "b", days: [1, 2, 3, 4, 5] }); // weekdays
+  const map = (days: Record<string, string[]>): EntryMap =>
+    new Map(Object.entries(days).flatMap(([date, ids]) => ids.map((id) => [entryKey(id, date), 1] as [string, number])));
+
+  it("counts days where everything scheduled is done", () => {
+    // Mon 14 both, Tue 15 only a, Wed 16 both; today Thu 17 unfinished.
+    const m = map({ "2026-09-14": ["a", "b"], "2026-09-15": ["a"], "2026-09-16": ["a", "b"] });
+    expect(isDrop([a, b], m, "2026-09-14")).toBe(true);
+    expect(isDrop([a, b], m, "2026-09-15")).toBe(false);
+    const s = dropStats([a, b], m, "2026-09-14", "2026-09-17");
+    expect(s).toMatchObject({ drops: 2, days: 3, current: 1, best: 1 });
+  });
+  it("weekends with only a done count, and a missed day breaks the run", () => {
+    // Fri 11 both, Sat 12 a, Sun 13 a, Mon 14 both → run of 4; Tue 15 missed; Wed 16 both.
+    const m = map({ "2026-09-11": ["a", "b"], "2026-09-12": ["a"], "2026-09-13": ["a"], "2026-09-14": ["a", "b"], "2026-09-16": ["a", "b"] });
+    const s = dropStats([a, b], m, "2026-09-10", "2026-09-16");
+    expect(s.current).toBe(1);
+    expect(s.best).toBe(4);
   });
 });

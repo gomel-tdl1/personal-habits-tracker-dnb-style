@@ -54,10 +54,18 @@ describe("comparison chart", () => {
     expect(series.map((s) => s.average)).toEqual([null, null]);
   });
 
-  it("uses a shared data anchor when no time tracker has a goal", () => {
+  it("uses the habit day axis when no time tracker has a goal", () => {
     const series = buildChartSeries([
       { ...bedtime, goal: null }, { ...second, goal: null },
     ], new Map([[entryKey("a", days[0]), 1380], [entryKey("b", days[0]), 60]]), days);
     expect(series.map((s) => s.points[0].value)).toEqual([1380, 1500]);
+  });
+
+  it("keeps evening wake-up values later than morning on the habit day axis", () => {
+    const series = buildChartSeries([{ ...bedtime, goal: 420 }], new Map([
+      [entryKey("a", days[0]), 1200], [entryKey("a", days[1]), 180],
+    ]), days);
+    expect(series[0].points.map((p) => p.value)).toEqual([1200, 1620]);
+    expect(series[0].goal).toBe(420);
   });
 });

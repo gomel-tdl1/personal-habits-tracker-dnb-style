@@ -14,7 +14,7 @@ pnpm dev
 ## Supabase
 
 1. Создай проект на [supabase.com](https://supabase.com).
-2. **SQL Editor** → вставь содержимое [supabase/migrations/001_init.sql](supabase/migrations/001_init.sql) → Run. Это создаст таблицы и RLS: доступ к строкам есть только у владельца.
+2. **SQL Editor** → вставь содержимое [supabase/migrations/001_init.sql](supabase/migrations/001_init.sql) → Run. Это создаст таблицы и RLS: доступ к строкам есть только у владельца. Затем выполни [004_sets_and_drops.sql](supabase/migrations/004_sets_and_drops.sql): трекеры «Подходы» и виджеты «Дропы» и «Подходы».
 3. **Authentication → Sign In / Providers → Email**: выключи **Allow new users to sign up**. Регистрация извне будет невозможна.
 4. **Authentication → Users → Add user → Create new user**: email и пароль, отметь **Auto Confirm User**.
 5. **Project Settings → API Keys**: скопируй Project URL и publishable key (`sb_publishable_…`; старый `anon` ключ тоже подойдёт).

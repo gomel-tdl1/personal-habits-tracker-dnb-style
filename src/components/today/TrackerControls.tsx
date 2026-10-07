@@ -1,7 +1,7 @@
 "use client";
 
 import { Clock, Minus, Plus, X } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatMinutes, parseTime } from "@/lib/dates";
 import { formatNumber } from "@/lib/format";
@@ -11,7 +11,7 @@ import type { Tracker } from "@/lib/types";
 import { originOf, originOfElement, type Origin } from "../fx/bus";
 import type { CommitGesture } from "./useCommit";
 
-type Commit = (value: number | null, gesture: CommitGesture, origin: Origin) => void;
+type Commit = (value: number | null, gesture: CommitGesture, origin: Origin, sets?: number[]) => void;
 
 /* ---------- Check ---------- */
 
@@ -62,6 +62,7 @@ function RoundButton({
   color,
   primary = false,
   disabled = false,
+  submit = false,
 }: {
   onClick: (e: React.MouseEvent) => void;
   label: string;
@@ -69,10 +70,11 @@ function RoundButton({
   color: string;
   primary?: boolean;
   disabled?: boolean;
+  submit?: boolean;
 }) {
   return (
     <motion.button
-      type="button"
+      type={submit ? "submit" : "button"}
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
@@ -170,6 +172,144 @@ function LevelMeter({ tracker, value, color, done }: { tracker: Tracker; value: 
           />
         );
       })}
+    </div>
+  );
+}
+
+/* ---------- Sets ---------- */
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Sets toward a daily goal: log 20, then 10, then 15… The day's value is their sum. */
+export function SetsControl({
+  tracker,
+  value,
+  sets,
+  color,
+  done,
+  onCommit,
+}: {
+  tracker: Tracker;
+  value: number | undefined;
+  sets: number[] | undefined;
+  color: string;
+  done: boolean;
+  onCommit: Commit;
+}) {
+  const { t, locale } = useI18n();
+  const [draft, setDraft] = useState("");
+  const list = sets ?? (value ? [value] : []);
+  const total = value ?? 0;
+  const goal = tracker.goal;
+  const left = goal !== null && tracker.goal_op === "gte" ? Math.max(0, goal - total) : null;
+  // One tap repeats a recent set; the step is the first suggestion.
+  const quick = [...new Set([...list].reverse())].slice(0, 2);
+  if (quick.length === 0) quick.push(tracker.step);
+
+  const write = (next: number[], origin: Origin) => {
+    const sum = round2(next.reduce((a, b) => a + b, 0));
+    onCommit(next.length ? sum : null, "step", origin, next);
+  };
+
+  const add = (amount: number, origin: Origin) => {
+    if (!(amount > 0)) return;
+    write([...list, round2(amount)], origin);
+    setDraft("");
+  };
+
+  const typed = Number(draft.trim().replace(",", "."));
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-end justify-between gap-3">
+        <BigValue sub={goal !== null ? `/ ${formatNumber(goal, locale)} ${tracker.unit ?? ""}` : tracker.unit}>{formatNumber(total, locale)}</BigValue>
+        {left !== null && (
+          <span className="shrink-0 pb-1 text-sm tabular" style={{ color: left === 0 ? color : "var(--color-dim)" }}>
+            {left === 0 ? t.today.marked : t.today.setsLeft(formatNumber(left, locale))}
+          </span>
+        )}
+      </div>
+
+      <SetsMeter sets={list} goal={goal} color={color} done={done} />
+
+      {list.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" aria-label={t.today.setsList}>
+          <AnimatePresence initial={false}>
+            {list.map((n, i) => (
+              <motion.li key={`${i}:${n}`} layout initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }}>
+                <button
+                  type="button"
+                  onClick={(e) => write(list.filter((_, k) => k !== i), originOf(e))}
+                  aria-label={t.today.removeSet(formatNumber(n, locale))}
+                  className="group flex h-8 items-center gap-1 rounded-lg border px-2.5 text-sm font-semibold tabular transition-colors"
+                  style={{ borderColor: `color-mix(in oklab, ${color} 40%, transparent)`, background: `color-mix(in oklab, ${color} 12%, transparent)` }}
+                >
+                  {i > 0 && <span className="font-normal text-faint">+</span>}
+                  {formatNumber(n, locale)}
+                  <X size={12} className="text-faint transition-colors group-hover:text-ink" aria-hidden />
+                </button>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
+
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          add(typed > 0 ? typed : quick[0], originOfElement(e.currentTarget.querySelector("button[type=submit]")));
+        }}
+      >
+        <input
+          inputMode="decimal"
+          enterKeyHint="done"
+          aria-label={t.today.setSize}
+          placeholder={formatNumber(quick[0], locale)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="display-tight tabular h-12 w-20 min-w-0 flex-1 rounded-xl border border-rig bg-stage px-3 text-2xl font-bold outline-none transition-colors placeholder:text-faint focus:border-[var(--c)]"
+          style={{ "--c": color } as React.CSSProperties}
+        />
+        {!draft &&
+          quick.map((n) => (
+            <motion.button
+              key={n}
+              type="button"
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => add(n, originOf(e))}
+              className="h-12 shrink-0 rounded-xl border border-rig px-3 font-display text-lg font-semibold tabular text-dim transition-colors hover:text-ink"
+            >
+              +{formatNumber(n, locale)}
+            </motion.button>
+          ))}
+        <RoundButton label={t.today.addSet} color={color} primary onClick={() => {}} submit>
+          <Plus size={26} strokeWidth={2.6} />
+        </RoundButton>
+      </form>
+    </div>
+  );
+}
+
+/** One lit segment per set, sized against the goal. */
+function SetsMeter({ sets, goal, color, done }: { sets: number[]; goal: number | null; color: string; done: boolean }) {
+  const total = sets.reduce((a, b) => a + b, 0);
+  const scale = Math.max(goal ?? 0, total, 1);
+  return (
+    <div className="flex h-2.5 gap-[3px] overflow-hidden rounded-full bg-stage" aria-hidden>
+      <AnimatePresence initial={false}>
+        {sets.map((n, i) => (
+          <motion.span
+            key={`${i}:${n}`}
+            className="h-full shrink-0 first:rounded-l-full"
+            style={{ background: color, opacity: i % 2 ? 0.72 : 1, boxShadow: done ? `0 0 10px ${color}` : undefined }}
+            initial={{ width: 0 }}
+            animate={{ width: `calc(${(n / scale) * 100}% - 3px)` }}
+            exit={{ width: 0 }}
+            transition={{ type: "spring", damping: 22, stiffness: 240 }}
+          />
+        ))}
+      </AnimatePresence>
     </div>
   );
 }

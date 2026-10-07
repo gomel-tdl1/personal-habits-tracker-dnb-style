@@ -1,14 +1,14 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { buildChartSeries } from "@/lib/chart";
 import { addDays, fromKey, rangeKeys } from "@/lib/dates";
 import { formatValue, localeTag } from "@/lib/format";
 import { isDone } from "@/lib/habits";
 import { useWidth } from "@/lib/hooks/useWidth";
 import { useI18n } from "@/lib/i18n/provider";
-import type { EntryMap, Tracker } from "@/lib/types";
+import { entryKey, type EntryMap, type SetsMap, type Tracker } from "@/lib/types";
 import { Tooltip, type TipState } from "./Tooltip";
 
 const H = 160;
@@ -19,10 +19,15 @@ interface Props {
   map: EntryMap;
   today: string;
   period: number;
+  /** Given for a sets tracker: bars are stacked one segment per set. */
+  sets?: SetsMap;
+  /** Hide the average above the chart when the widget shows its own numbers. */
+  summary?: boolean;
 }
 
-export function DailyChart({ trackers, map, today, period }: Props) {
+export function DailyChart({ trackers, map, today, period, sets, summary = true }: Props) {
   const { t, locale } = useI18n();
+  const chartId = useId();
   const [ref, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
   const days = rangeKeys(addDays(today, -(period - 1)), today);
@@ -34,7 +39,7 @@ export function DailyChart({ trackers, map, today, period }: Props) {
   const fmt = (v: number) => formatValue(tracker, v, locale);
   const display = (tr: Tracker, value: number | null | undefined) => value == null ? "—" :
     `${formatValue(tr, value, locale)}${tr.unit && tr.type !== "time" ? ` ${tr.unit}` : ""}`;
-  const bars = tracker.type === "counter";
+  const bars = tracker.type === "counter" || tracker.type === "sets";
   const multiple = series.length > 1;
   const values = series.flatMap((s) => s.points.flatMap((p) => p.value === undefined ? [] : [p.value]));
   const candidates = [...values, ...series.flatMap((s) => s.goal === null ? [] : [s.goal])];
@@ -79,7 +84,7 @@ export function DailyChart({ trackers, map, today, period }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      {multiple ? (
+      {summary && (multiple ? (
         <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-2">
           {series.map((s) => (
             <li key={s.tracker.id} className="min-w-0 max-w-full">
@@ -99,7 +104,7 @@ export function DailyChart({ trackers, map, today, period }: Props) {
           <span className="display-tight tabular text-4xl font-bold">{series[0].average !== null ? fmt(series[0].average) : "—"}</span>
           <span className="text-sm text-dim">{t.dashboard.avg}{tracker.unit && tracker.type !== "time" ? `, ${tracker.unit}` : ""}</span>
         </div>
-      )}
+      ))}
 
       <div ref={ref} className="relative mt-auto">
         {values.length === 0 && <p className="absolute inset-x-0 top-1/3 text-center text-sm text-dim">{t.dashboard.noData}</p>}
@@ -145,9 +150,36 @@ export function DailyChart({ trackers, map, today, period }: Props) {
                         const top = Math.min(y(p.value), y(0));
                         const base = Math.max(y(p.value), y(0));
                         const done = isDone(s.tracker, p.value);
-                        return <rect key={p.date} x={x(i) - groupWidth / 2 + seriesIndex * w}
+                        const opacity = activeIndex === null || activeIndex === i ? (done ? 1 : 0.45) : done ? 0.6 : 0.25;
+                        const x0 = x(i) - groupWidth / 2 + seriesIndex * w;
+                        const barWidth = Math.max(0.5, w - (multiple ? 1 : 0));
+                        const parts = s.tracker.type === "sets" ? sets?.get(entryKey(s.tracker.id, p.date)) : undefined;
+                        if (parts && parts.length > 1) {
+                          const clipId = `${chartId}-bar-${s.tracker.id}-${i}`;
+                          let acc = 0;
+                          return (
+                            <g key={p.date}>
+                              <defs>
+                                <clipPath id={clipId}>
+                                  <rect x={x0} y={top} width={barWidth} height={base - top} rx={Math.min(4, w / 2, (base - top) / 2)} />
+                                </clipPath>
+                              </defs>
+                              <g clipPath={`url(#${clipId})`}>
+                                {parts.map((n, k) => {
+                                  const y0 = y(acc + n);
+                                  const y1 = y(acc);
+                                  acc += n;
+                                  return <rect key={k} x={x0} y={y0} width={barWidth}
+                                    height={Math.max(0, y1 - y0 - (k < parts.length - 1 && y1 - y0 > 3 ? 1.5 : 0))}
+                                    fill={s.color} fillOpacity={opacity * (k % 2 ? 0.7 : 1)} />;
+                                })}
+                              </g>
+                            </g>
+                          );
+                        }
+                        return <rect key={p.date} x={x0}
                           y={top} width={Math.max(0.5, w - (multiple ? 1 : 0))} height={base - top} rx={Math.min(4, w / 2, (base - top) / 2)}
-                          fill={s.color} fillOpacity={activeIndex === null || activeIndex === i ? (done ? 1 : 0.45) : done ? 0.6 : 0.25} />;
+                          fill={s.color} fillOpacity={opacity} />;
                       })}
                     </motion.g>
                   ) : line ? (
